@@ -111,6 +111,7 @@ public class GameManager {
         if (currentGame != null && currentGame.isGaming()) {
             currentGame.broadcast("§c游戏已被管理员 " + sender.getName() + " 强制结束！");
             resetGame();
+            sender.sendMessage("§c成功结束。");
         } else {
             sender.sendMessage("§c当前没有正在进行的游戏。");
         }

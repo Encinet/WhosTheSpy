@@ -168,6 +168,10 @@ public class Commands implements CommandExecutor, TabCompleter {
             player.sendMessage("§c游戏还未开始, 无法投票");
             return;
         }
+        if (!game.getPlayers().contains(player)) {
+            player.sendMessage("§c你不在游戏中，无法投票");
+            return;
+        }
 
         if (args.length == 1) {
             // 打开投票GUI
@@ -200,6 +204,10 @@ public class Commands implements CommandExecutor, TabCompleter {
         Game game = GameManager.getGame();
         if (!game.isGaming()) {
             player.sendMessage("§c游戏还未开始");
+            return;
+        }
+        if (!game.getPlayers().contains(player)) {
+            player.sendMessage("§c你不在游戏中，无法使用此命令");
             return;
         }
         if (game.getWhiteboard() == null || !game.getWhiteboard().equals(player)) {
