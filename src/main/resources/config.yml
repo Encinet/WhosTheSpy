@@ -1,5 +1,8 @@
 # 谁是卧底 插件配置
 
+# ActionBar更新间隔(单位:tick, 20tick=1秒)
+actionbar-interval: 10
+
 # 游戏词库
 # 在这里添加你想要的词语，格式如下：
 # - civilian: "平民词"
@@ -95,3 +98,4 @@ words:
     spy: "箭矢"
   - civilian: "婚礼"
     spy: "葬礼"
+

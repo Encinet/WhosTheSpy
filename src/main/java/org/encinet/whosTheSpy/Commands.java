@@ -12,13 +12,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class Commands implements CommandExecutor, TabCompleter {
-
-    private final WhosTheSpy plugin;
-
-    public Commands(WhosTheSpy plugin) {
-        this.plugin = plugin;
-    }
-
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length > 0 && args[0].equalsIgnoreCase("stop")) {
@@ -58,7 +51,7 @@ public class Commands implements CommandExecutor, TabCompleter {
                 handleJoin(player);
                 break;
             case "leave":
-                handleLeave(player);
+                handleLeave(player, false);
                 break;
             case "ready":
                 handleReady(player);
@@ -82,7 +75,7 @@ public class Commands implements CommandExecutor, TabCompleter {
 
     private void handleJoin(Player player) {
         Game game = GameManager.getGame();
-        if (game.getPlayers().contains(player)) {
+        if (game.getGamePlayers().containsKey(player)) {
             player.sendMessage("§c你已经在游戏中了");
             return;
         }
@@ -92,13 +85,13 @@ public class Commands implements CommandExecutor, TabCompleter {
         }
         game.addPlayer(player);
         player.sendMessage("§a你已加入游戏, 输入 §e/spy ready §a准备");
-        plugin.getServer().broadcastMessage(
+        player.getServer().broadcastMessage(
                 "§e" + player.getName() + " §a加入了§f谁是卧底§a游戏 §7(" + game.getPlayers().size() + "人)");
     }
 
     private void handleReady(Player player) {
         Game game = GameManager.getGame();
-        if (!game.getPlayers().contains(player)) {
+        if (!game.getGamePlayers().containsKey(player)) {
             player.sendMessage("§c你不在游戏房间内");
             return;
         }
@@ -118,7 +111,7 @@ public class Commands implements CommandExecutor, TabCompleter {
                         + Math.max(4, game.getPlayers().size()) + ")"));
 
         // Check if enough players are ready to start
-        if (game.getPlayers().size() >= 4 && game.getReadyPlayers().size() == game.getPlayers().size()) {
+        if (game.getActivePlayers().size() >= 4 && game.getReadyPlayers().size() == game.getActivePlayers().size()) {
             // Start the game
             GameManager.startGame();
         }
@@ -126,7 +119,7 @@ public class Commands implements CommandExecutor, TabCompleter {
 
     private void handleUnready(Player player) {
         Game game = GameManager.getGame();
-        if (!game.getPlayers().contains(player)) {
+        if (!game.getGamePlayers().containsKey(player)) {
             player.sendMessage("§c你不在游戏房间内");
             return;
         }
@@ -146,7 +139,7 @@ public class Commands implements CommandExecutor, TabCompleter {
                         + "/" + game.getPlayers().size() + ")"));
     }
 
-    private void handleLeave(Player player) {
+    private void handleLeave(Player player, boolean notify) {
         Game game = GameManager.getGame();
         if (!game.getPlayers().contains(player)) {
             player.sendMessage("§c你不在游戏房间内");
@@ -158,8 +151,10 @@ public class Commands implements CommandExecutor, TabCompleter {
         }
         game.removePlayer(player);
         player.sendMessage("§a你已退出游戏");
-        game.getPlayers().forEach(p -> p.sendMessage(
-                "§e" + player.getName() + " §c退出了游戏 §7(" + game.getPlayers().size() + "人)"));
+        if (notify) {
+            game.getPlayers().forEach(p -> p.sendMessage(
+                    "§e" + player.getName() + " §c退出了游戏 §7(" + game.getPlayers().size() + "人)"));
+        }
     }
 
     private void handleVote(Player player, String[] args) {
@@ -168,7 +163,7 @@ public class Commands implements CommandExecutor, TabCompleter {
             player.sendMessage("§c游戏还未开始, 无法投票");
             return;
         }
-        if (!game.getPlayers().contains(player)) {
+        if (!game.getActivePlayers().contains(player)) {
             player.sendMessage("§c你不在游戏中，无法投票");
             return;
         }
@@ -182,9 +177,14 @@ public class Commands implements CommandExecutor, TabCompleter {
                 player.sendMessage("§a你选择了弃权");
             } else {
                 // 直接通过命令投票
-                Player target = plugin.getServer().getPlayer(args[1]);
+                Player target = player.getServer().getPlayer(args[1]);
                 if (target == null || !game.getPlayers().contains(target)) {
                     player.sendMessage("§c玩家未找到或不在游戏中");
+                    return;
+                }
+                // 禁止投票给自己
+                if (target.equals(player)) {
+                    player.sendMessage("§c你不能投票给自己");
                     return;
                 }
                 game.vote(player, target);
@@ -192,7 +192,7 @@ public class Commands implements CommandExecutor, TabCompleter {
             }
 
             // 检查是否所有人都投票了
-            if (game.getVotes().size() == game.getPlayers().size()) {
+            if (game.getVotes().size() == game.getActivePlayers().size()) {
                 GameManager.tallyVotes();
             }
         } else {
@@ -206,7 +206,7 @@ public class Commands implements CommandExecutor, TabCompleter {
             player.sendMessage("§c游戏还未开始");
             return;
         }
-        if (!game.getPlayers().contains(player)) {
+        if (!game.getActivePlayers().contains(player)) {
             player.sendMessage("§c你不在游戏中，无法使用此命令");
             return;
         }
@@ -220,20 +220,15 @@ public class Commands implements CommandExecutor, TabCompleter {
         }
 
         String guessedWord = args[1];
-        String civilianWord = game.getCivilianWord();
-        String spyWord = game.getSpyWord();
 
-        if (guessedWord.equalsIgnoreCase(civilianWord) || guessedWord.equalsIgnoreCase(spyWord)) {
-            plugin.getServer().broadcastMessage("§f白板 " + player.getName() + " 猜对了词语！白板胜利！");
+        // 白板只能通过猜中平民词获胜
+        if (guessedWord.equalsIgnoreCase(game.getCivilianWord())) {
+            player.getServer().broadcastMessage("§f白板 " + player.getName() + " 猜对了平民词语！白板胜利！");
             GameManager.endGame();
         } else {
-            plugin.getServer().broadcastMessage("§f白板 " + player.getName() + " 猜错了词语！白板出局！");
-            game.removePlayer(player);
-            // 检查游戏是否因为白板出局而结束
-            if (game.getPlayers().size() <= 2) {
-                plugin.getServer().broadcastMessage("§c场上只剩下两名玩家，卧底胜利！");
-                GameManager.endGame();
-            }
+            player.getServer().broadcastMessage("§f白板 " + player.getName() + " 猜错了词语！白板出局！");
+            // 使用 GameManager 来移除玩家，以统一处理退出逻辑
+            GameManager.playerQuit(player, false);
         }
     }
 
@@ -248,7 +243,7 @@ public class Commands implements CommandExecutor, TabCompleter {
         if (args.length == 2 && args[0].equalsIgnoreCase("vote")) {
             Game game = GameManager.getGame();
             if (game.isGaming()) {
-                List<String> suggestions = game.getPlayers().stream()
+                List<String> suggestions = game.getActivePlayers().stream()
                         .filter(p -> !p.equals(sender))
                         .map(Player::getName)
                         .collect(Collectors.toList());

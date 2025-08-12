@@ -24,12 +24,13 @@ public class VoteGUI implements Listener {
         } else if (game.getVotes().containsKey(player)) {
             title = "§e投票 §f| §a你当前选中: §c弃权";
         }
-        int size = (int) Math.ceil((game.getPlayers().size() + 1) / 9.0) * 9;
-        if (size == 0) size = 9;
+        int size = (int) Math.ceil((game.getActivePlayers().size() + 1) / 9.0) * 9;
+        if (size == 0)
+            size = 9;
         Inventory gui = Bukkit.createInventory(null, size, title);
 
-        for (Player p : game.getPlayers()) {
-            if (!player.getUniqueId().equals(p.getUniqueId())) {
+        for (Player p : game.getActivePlayers()) {
+            if (p != null && !player.getUniqueId().equals(p.getUniqueId())) {
                 ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
                 SkullMeta meta = (SkullMeta) skull.getItemMeta();
                 if (meta != null) {
@@ -49,7 +50,6 @@ public class VoteGUI implements Listener {
             abstainItem.setItemMeta(abstainMeta);
         }
         gui.setItem(size - 1, abstainItem);
-
 
         player.openInventory(gui);
     }
@@ -78,7 +78,7 @@ public class VoteGUI implements Listener {
             player.closeInventory();
 
             // 检查是否所有人都投票了
-            if (game.getVotes().size() == game.getPlayers().size()) {
+            if (game.getVotes().size() == game.getActivePlayers().size()) {
                 GameManager.tallyVotes();
             }
             return;
@@ -95,12 +95,19 @@ public class VoteGUI implements Listener {
 
         Player target = (Player) meta.getOwningPlayer();
 
+        // 目标玩家是否在游戏玩家列表中（防止投票给已出局玩家）
+        if (!game.getActivePlayers().contains(target)) {
+            player.sendMessage("§c该玩家已出局，不能投票");
+            player.closeInventory();
+            return;
+        }
+
         game.vote(player, target);
         player.sendMessage("§a你投票给了 §e" + target.getName());
         player.closeInventory();
 
         // 检查是否所有人都投票了
-        if (game.getVotes().size() == game.getPlayers().size()) {
+        if (game.getVotes().size() == game.getActivePlayers().size()) {
             GameManager.tallyVotes();
         }
     }

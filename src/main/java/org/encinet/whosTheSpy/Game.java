@@ -2,13 +2,15 @@ package org.encinet.whosTheSpy;
 
 import org.bukkit.entity.Player;
 
-import java.util.HashMap;
+import org.encinet.whosTheSpy.model.PlayerState;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 代表一局“谁是卧底”游戏。
+ * 代表一局"谁是卧底"游戏。
  * 此类管理游戏状态、玩家、词语、角色和投票。
  */
 public class Game {
@@ -18,9 +20,11 @@ public class Game {
      */
     private boolean gaming = false;
     /**
-     * 当前在游戏中的所有玩家的集合。
+     * 存储所有参与本局游戏的玩家及其状态（游戏中/观战中）。
+     * Key: 玩家 (Player)
+     * Value: 玩家状态 (PlayerState)
      */
-    private final Set<Player> players = new HashSet<>();
+    private final Map<Player, PlayerState> gamePlayers = new ConcurrentHashMap<>();
     /**
      * 已表示准备好开始游戏的玩家的集合。
      */
@@ -46,18 +50,21 @@ public class Game {
      * Key: 投票的玩家 (voter)
      * Value: 被投票的玩家 (target)
      */
-    private final Map<Player, Player> votes = new HashMap<>();
+    private final Map<Player, Player> votes = new ConcurrentHashMap<>();
     /**
      * 存储分配给每个玩家的词语的映射。
      * Key: 玩家 (player)
      * Value: 分配给玩家的词语 (word)
      */
-    private final Map<Player, String> playerWords = new HashMap<>();
+    private final Map<Player, String> playerWords = new ConcurrentHashMap<>();
+    // 存储玩家角色显示文本 [角色] 词语
+    private final Map<Player, String> roleDisplays = new ConcurrentHashMap<>();
 
     /**
      * 用给定的词语初始化一个新游戏。
+     * 
      * @param civilianWord 平民的词语
-     * @param spyWord 卧底的词语
+     * @param spyWord      卧底的词语
      */
     public Game(String civilianWord, String spyWord) {
         this.civilianWord = civilianWord;
@@ -74,8 +81,19 @@ public class Game {
         this.gaming = gaming;
     }
 
+    public Map<Player, PlayerState> getGamePlayers() {
+        return gamePlayers;
+    }
+
     public Set<Player> getPlayers() {
-        return players;
+        return gamePlayers.keySet();
+    }
+
+    public Set<Player> getActivePlayers() {
+        return gamePlayers.entrySet().stream()
+                .filter(entry -> entry.getValue() == PlayerState.PLAYING)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     public Set<Player> getReadyPlayers() {
@@ -116,24 +134,33 @@ public class Game {
 
     /**
      * 将一个玩家添加到游戏中。
+     * 
      * @param player 要添加的玩家
      */
     public void addPlayer(Player player) {
-        players.add(player);
+        gamePlayers.put(player, PlayerState.PLAYING);
     }
 
     /**
      * 从游戏中移除一个玩家及其相关数据 (准备状态, 投票)。
+     * 
      * @param player 要移除的玩家
      */
     public void removePlayer(Player player) {
-        players.remove(player);
+        gamePlayers.remove(player);
         readyPlayers.remove(player);
         votes.remove(player);
     }
 
+    public void setPlayerState(Player player, PlayerState state) {
+        if (gamePlayers.containsKey(player)) {
+            gamePlayers.put(player, state);
+        }
+    }
+
     /**
      * 将一个玩家标记为已准备。
+     * 
      * @param player 要标记为已准备的玩家
      */
     public void addReadyPlayer(Player player) {
@@ -142,6 +169,7 @@ public class Game {
 
     /**
      * 取消一个玩家的准备状态。
+     * 
      * @param player 要取消准备状态的玩家
      */
     public void removeReadyPlayer(Player player) {
@@ -150,7 +178,8 @@ public class Game {
 
     /**
      * 记录一个玩家对另一个玩家的投票。
-     * @param voter 投票的玩家
+     * 
+     * @param voter  投票的玩家
      * @param target 被投票的玩家
      */
     public void vote(Player voter, Player target) {
@@ -166,19 +195,40 @@ public class Game {
 
     /**
      * 为一个玩家分配一个特定的词语。
+     * 
      * @param player 玩家
-     * @param word 分配的词语
+     * @param word   分配的词语
      */
     public void setPlayerWord(Player player, String word) {
         playerWords.put(player, word);
     }
 
+    public void setRoleDisplay(Player player, String display) {
+        roleDisplays.put(player, display);
+    }
+
+    public String getRoleDisplay(Player player) {
+        return roleDisplays.getOrDefault(player, "");
+    }
+
     /**
-     * 向游戏中的所有玩家发送一条消息。
+     * 向所有玩家（包括被淘汰的）发送消息
+     * 
+     * @param message 要发送的消息
+     */
+    public void broadcastToAll(String message) {
+        for (Player player : gamePlayers.keySet()) {
+            player.sendMessage(message);
+        }
+    }
+
+    /**
+     * 向当前在游戏中的玩家发送消息
+     * 
      * @param message 要发送的消息
      */
     public void broadcast(String message) {
-        for (Player player : players) {
+        for (Player player : getActivePlayers()) {
             player.sendMessage(message);
         }
     }

@@ -22,7 +22,7 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
         saveDefaultConfig(); // 保存默认配置
         GameManager.init(this);
         // Plugin startup logic
-        Commands commands = new Commands(this);
+        Commands commands = new Commands();
         getCommand("spy").setExecutor(commands);
         getCommand("spy").setTabCompleter(commands);
         getServer().getPluginManager().registerEvents(this, this);
@@ -37,7 +37,7 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        GameManager.playerQuit(event.getPlayer());
+        GameManager.playerQuit(event.getPlayer(), false);
     }
 
     @EventHandler
@@ -48,9 +48,9 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
             String message = event.getMessage().toLowerCase();
             String civilianWord = game.getCivilianWord().toLowerCase();
             String spyWord = game.getSpyWord().toLowerCase();
-            
-            // 根据玩家角色应用不同的过滤规则
-            if (game.getPlayers().contains(player)) {
+
+            // 只对仍在游戏的玩家进行词语过滤
+            if (game.getActivePlayers().contains(player)) {
                 if (player.equals(game.getSpy())) {
                     // 卧底只检查卧底词汇
                     if (message.contains(spyWord)) {
@@ -69,12 +69,6 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
                         event.setCancelled(true);
                         player.sendMessage("§c[!] §r请不要在公屏说出任何有关题目的东西!");
                     }
-                }
-            } else {
-                // 非游戏玩家检查所有词汇
-                if (message.contains(civilianWord) || message.contains(spyWord)) {
-                    event.setCancelled(true);
-                    player.sendMessage("§c[!] §r请不要在公屏说出任何有关题目的东西!");
                 }
             }
         }
@@ -92,9 +86,9 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
             Player player = event.getPlayer();
             String civilianWord = game.getCivilianWord().toLowerCase();
             String spyWord = game.getSpyWord().toLowerCase();
-            
-            // 根据玩家角色应用不同的过滤规则
-            if (game.getPlayers().contains(player)) {
+
+            // 只对仍在游戏的玩家进行词语过滤
+            if (game.getActivePlayers().contains(player)) {
                 if (player.equals(game.getSpy())) {
                     // 卧底只检查卧底词汇
                     if (message.contains(spyWord)) {
@@ -113,12 +107,6 @@ public final class WhosTheSpy extends JavaPlugin implements Listener {
                         event.setCancelled(true);
                         player.sendMessage("§c[!] §r请不要在指令中包含任何有关题目的东西!");
                     }
-                }
-            } else {
-                // 非游戏玩家检查所有词汇
-                if (message.contains(civilianWord) || message.contains(spyWord)) {
-                    event.setCancelled(true);
-                    player.sendMessage("§c[!] §r请不要在指令中包含任何有关题目的东西!");
                 }
             }
         }
